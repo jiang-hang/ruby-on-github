@@ -1,7 +1,9 @@
-# R on github
+# Ruby on github
+
+it is a project based on Hadley's r-on-github
 
 This project uses githubs code and repository api to collect information about 
-all github repositories that use R.
+all github repositories that use Ruby.
 
 ## Getting the data
 
