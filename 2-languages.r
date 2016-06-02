@@ -2,42 +2,42 @@ library(ggplot2)
 library(plyr)
 library(reshape2)
 
-repos <- llply(dir("cache-repo", full.names = TRUE), readRDS)
-names(repos) <- vapply(repos, function(x) x$info$full_name, character(1))
 
-lang <- lapply(repos, function(x) x$lang)
-lang_collapse <- function(x) {
-  x <- unlist(x)
-  data.frame(t(prop.table(x)), total = sum(x), check.names = FALSE)
+genDf<-function(){
+
+repos <- llply(dir("cache-repo", full.names = TRUE), readRDS)
+
+
+
+res=ldply(repos, function(x) {
+   yy = x$info
+   data.frame(name=yy$full_name,owner=yy$owner$login,desc=ifelse(is.null(yy$description),"",yy$description), star=yy$stargazers_count, url=yy$html_url)
+   })
+
+saveRDS(res,"./gemdf.rds")
 }
 
-langs <- ldply(lang, lang_collapse)
+topStars<-function()
+{
+    gems=readRDS("./gemdf.rds")
+    gems$name = rwp::link(gems$url,gems$name)
+    gems$url=NULL
+    gems$star = as.numeric(gems$star)
+    gg=gems[order(gems$star,decreasing=T),]
+    rownames(gg)=NULL
+    rwp::blogtable(head(gg,300),none_escape_column=1)	
+}
 
-# Explore total repo size ------------------------------------------------------
-qplot(total, data = langs, binwidth = 0.05) + scale_x_log10()
+topOwner<-function()
+{
+    gems=readRDS("./gemdf.rds")
+    gems$name = rwp::link(gems$url,gems$name)
+    gems$url=NULL
+    gems$star = as.numeric(gems$star)
+    rr=plyr::ddply(gems,.(owner),function(df) data.frame(totalStar=sum(df$star),pkgs=paste(df$name,collapse=",")))
 
-# Only look at repos with at least 5k of code
-mean(langs$total > 5e3)
-langs$.id[langs$total < 5e3][1:10]
-langs <- subset(langs, total > 5e3)
+    rwp::blogtable(rr,none_escape_column=c("pkgs"))
+}
 
-qplot(total, data = langs, binwidth = 0.05) + scale_x_log10()
 
-# Big repos: over a megabyte of R code
-big <- subset(langs, langs$total * langs$R > 1e6)
-big <- big[(vapply(big, function(x) !all(is.na(x)), logical(1)))]
-big$.id
 
-# Look at distribution of other languages --------------------------------------
-
-qplot(R, data = langs, binwidth = 0.01)
-mean(langs$R == 1)
-# ~70% are only R
-
-langm <- melt(langs, id = c(".id", "total", "R"), na.rm = TRUE)
-other_lang <- count(langm, "variable")
-pop_lang <- match_df(langm, subset(other_lang, freq >= 20))
-
-qplot(value, data = pop_lang, binwidth = 0.05) + facet_wrap(~ variable)
-qplot(value, ..density.., data = pop_lang, binwidth = 0.05, geom = "histogram") + 
-  facet_wrap(~ variable)
